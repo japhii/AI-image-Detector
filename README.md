@@ -109,7 +109,9 @@ Trainable parameters: 93,377
 
 ## Outputs
 
-After running `train.py` you will find:
-- `outputs/training_history.png` — Loss, accuracy, precision, recall, AUC curves
-- `outputs/confusion_matrix.png` — Heatmap on 20,000 test images
-- Printed final metrics summary in the terminal
+### Training History Curves
+![Training History](outputs/training_history.png)
+
+### Confusion Matrix
+![Confusion Matrix](outputs/confusion_matrix.png)
+
