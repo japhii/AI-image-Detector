@@ -1,0 +1,13 @@
+# Core ML / DL
+tensorflow>=2.12.0
+
+# Numerical computing
+numpy>=1.23.0
+
+# Visualisation
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Jupyter (optional — only needed for notebook.ipynb)
+jupyter>=1.0.0
+ipykernel>=6.0.0
