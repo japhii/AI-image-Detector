@@ -28,18 +28,46 @@ Image Dif/
 ├── setup_data.py          # Unzips & organises the Kaggle download
 ├── train.py               # Main pipeline: load → build → train → evaluate
 ├── notebook.ipynb         # Jupyter companion (same logic, inline plots)
-└── data/
-    ├── train/
-    │   ├── REAL/          # 50,000 real images (train+val source)
-    │   └── FAKE/          # 50,000 AI images  (train+val source)
-    └── test/
-        ├── REAL/          # 10,000 real images
-        └── FAKE/          # 10,000 AI images
+├── cifake_model.keras     # Trained CNN model artifact
+├── start.sh               # Run both backend & frontend with one command
+├── backend/
+│   ├── main.py            # FastAPI API server (image prediction endpoint)
+│   └── requirements.txt
+└── frontend/              # Next.js + Tailwind CSS dark-mode web interface
+    ├── app/               # Next.js App Router (page.tsx, globals.css)
+    └── package.json
 ```
 
 ---
 
-## Quick Start
+## 🌐 Web App (FastAPI + Next.js)
+
+A modern, glassmorphic web UI to upload images and analyze them with the trained CNN model in real-time.
+
+### Running with One Command
+```bash
+./start.sh
+```
+This launches:
+- **FastAPI backend** on `http://localhost:8000`
+- **Next.js frontend** on `http://localhost:3000`
+
+### Running Separately
+
+**1. Start Backend:**
+```bash
+python3 -m uvicorn backend.main:app --port 8000 --reload
+```
+
+**2. Start Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+---
+
+## Quick Start (Training Pipeline)
 
 ### 1. Install dependencies
 ```bash
