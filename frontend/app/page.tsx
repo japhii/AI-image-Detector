@@ -321,13 +321,12 @@ export default function Home() {
               <button
                 id="detect-btn"
                 onClick={runDetection}
-                disabled={state === "scanning"}
                 className="flex-1 flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-white text-base transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   background: "linear-gradient(135deg, #7c3aed, #4f46e5)",
                   boxShadow: "0 4px 24px rgba(124,58,237,0.4)",
                 }}
-                onMouseEnter={e => { if (state !== "scanning") (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
               >
                 <ScanIcon />
