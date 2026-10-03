@@ -1,58 +1,61 @@
 """
 train.py
 ========
-Complete end-to-end pipeline: Real vs AI-Generated Image Classifier
-Dataset  : CIFAKE (120,000 images — 60k CIFAR-10 real + 60k Stable-Diffusion fake)
-Task     : Binary classification  →  real (0)  vs  AI-generated (1)
-Hardware : CPU only (no GPU assumed)
+End-to-end training pipeline for the Real vs AI-Generated Image Classifier.
 
-Pipeline:
+Dataset  : CIFAKE — 120,000 images (60k real CIFAR-10 photos + 60k Stable Diffusion)
+Task     : Binary classification → REAL (0) vs AI-Generated (1)
+Hardware : CPU only (no GPU required)
+
+Pipeline
+--------
   1. Imports & reproducibility seeds
-  2. Data loading, quality scan, split
-  3. Data augmentation (light)
-  4. CNN architecture (93,377 trainable parameters)
-  5. Compilation
-  6. Training with EarlyStopping (stops epoch 12, best epoch 9)
-  7. Evaluation on held-out 20,000 test images
-  8. Plots: training history + confusion matrix
-  9. Final summary
+  2. Data loading, quality scan, and train/val/test split
+  3. Normalisation & light data augmentation
+  4. CNN architecture  (93,377 trainable parameters)
+  5. Model compilation
+  6. Training with EarlyStopping (stops ~epoch 12, best weights from ~epoch 9)
+  7. Evaluation on the held-out 20,000 test images
+  8. Save plots: training history + confusion matrix
+  9. Print final summary
 
-Run:
+How to run
+----------
   python train.py
 """
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❶  IMPORTS & REPRODUCIBILITY SEEDS
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 1. IMPORTS & REPRODUCIBILITY SEEDS
+# ═══════════════════════════════════════════════════════════════════════════
 import os
 import random
 
-# ── Set all seeds BEFORE importing TensorFlow ────────────────────────────────
-# Why: TF initialises ops internally at import; seeding afterwards may miss some
-#      sources of non-determinism.
+# Seeds must be set BEFORE importing TensorFlow.
+# TensorFlow initialises internal ops at import time, so seeding after the
+# import may miss some sources of randomness.
 SEED = 42
-os.environ["PYTHONHASHSEED"] = str(SEED)        # Python hash randomisation
-random.seed(SEED)                               # Python random
+os.environ["PYTHONHASHSEED"] = str(SEED)   # Python hash randomisation
+random.seed(SEED)                          # Python stdlib random
 
 import numpy as np
-np.random.seed(SEED)                            # NumPy global seed
+np.random.seed(SEED)                       # NumPy global seed
 
-import tensorflow as tf
-tf.random.set_seed(SEED)                        # TF / Keras op-level seed
-
-# Restrict TF to CPU only so every run is identical regardless of GPU presence
+# Restrict TensorFlow to CPU only — ensures identical results on every machine
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
+import tensorflow as tf
+tf.random.set_seed(SEED)                   # TensorFlow / Keras op-level seed
+
+# Show only TF warnings and errors (suppress info messages)
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
 import matplotlib
-matplotlib.use("Agg")           # non-interactive backend (safe for scripts)
+matplotlib.use("Agg")   # non-interactive backend — safe for scripts / servers
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 from pathlib import Path
 from sklearn.metrics import confusion_matrix
-
-# Silence TF info messages; keep only warnings and errors
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 print("=" * 70)
 print("  Real vs AI-Generated Image Classifier  —  CIFAKE Dataset")
@@ -62,10 +65,10 @@ print(f"  NumPy version      : {np.__version__}")
 print(f"  Random seed        : {SEED}")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❷  DATA LOADING, QUALITY SCAN & SPLIT
-# ══════════════════════════════════════════════════════════════════════════════
-# ── Paths ─────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+# 2. DATA LOADING, QUALITY SCAN & SPLIT
+# ═══════════════════════════════════════════════════════════════════════════
+# ── Paths ────────────────────────────────────────────────────────────────────
 DATA_DIR       = Path("data")
 TRAIN_DIR      = DATA_DIR / "train"    # 100,000 images: 50k REAL + 50k FAKE
 TEST_DIR       = DATA_DIR / "test"     # 20,000  images: 10k REAL + 10k FAKE
@@ -196,9 +199,9 @@ assert test_real == test_fake, \
 print("  ✓ Class balance confirmed: perfectly balanced in both splits.")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❸  NORMALISATION & DATA AUGMENTATION
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 3. NORMALISATION & DATA AUGMENTATION
+# ═══════════════════════════════════════════════════════════════════════════
 # Why normalise: raw pixels [0, 255] cause large, unstable gradients during
 # training.  Mapping to [0, 1] keeps gradients in a stable range and makes
 # Adam's default learning rate effective.
@@ -259,9 +262,9 @@ print("  Augmentation: RandomFlip(horizontal) + RandomTranslation(±10%)")
 print("  Normalisation: pixel ÷ 255  →  [0, 1]")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❹  MODEL ARCHITECTURE
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 4. MODEL ARCHITECTURE
+# ═══════════════════════════════════════════════════════════════════════════
 # Architecture rationale:
 # ─ Three convolutional blocks progressively extract spatial features at
 #   increasing levels of abstraction (edges → textures → patterns).
@@ -318,9 +321,9 @@ assert total_params == 93_377, (
 print("  ✓ Parameter count confirmed: 93,377")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❺  COMPILATION
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 5. COMPILATION
+# ═══════════════════════════════════════════════════════════════════════════
 # Loss choice: Binary cross-entropy is the canonical loss for binary sigmoid
 # outputs.  It measures the log-probability assigned to the correct label and
 # handles the 0/1 boundary cleanly.
@@ -355,9 +358,9 @@ print("  Optimizer : Adam (lr=1e-3 default)")
 print("  Metrics   : accuracy, precision, recall, AUC")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❻  TRAINING
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 6. TRAINING
+# ═══════════════════════════════════════════════════════════════════════════
 # EarlyStopping rationale:
 #   Monitoring validation loss — not accuracy — because loss is a smoother
 #   signal that reflects model calibration, not just threshold crossings.
@@ -409,9 +412,9 @@ model.save(model_save_path)
 print(f"  ✓ Saved trained model weights to: {model_save_path}")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❼  EVALUATION ON HELD-OUT TEST SET
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 7. EVALUATION ON THE HELD-OUT TEST SET
+# ═══════════════════════════════════════════════════════════════════════════
 print("─" * 70)
 print("❼  Evaluating on test set (20,000 images the model has never seen) ...")
 print()
@@ -464,9 +467,9 @@ print(f"    AI images missed    : {FN:,}")
 print(f"    Real images flagged : {FP:,}")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❽  PLOTS
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 8. SAVE PLOTS
+# ═══════════════════════════════════════════════════════════════════════════
 print("─" * 70)
 print("❽  Saving plots ...")
 
@@ -562,9 +565,9 @@ plt.close()
 print(f"  Saved: {cm_path}")
 print()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ❾  FINAL SUMMARY
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 9. FINAL SUMMARY
+# ═══════════════════════════════════════════════════════════════════════════
 print("=" * 70)
 print("  FINAL RESULTS SUMMARY")
 print("=" * 70)

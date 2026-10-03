@@ -1,23 +1,40 @@
-# Byte-compiled / optimized / DLL files
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
-*$py.class
-backend/__pycache__/
+*.pyo
+*.pyd
+.Python
 
-# Frontend Node & Next.js
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/.vercel/
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
 
-# Data & Zip Archives (do not push datasets to GitHub)
+# ── Jupyter ────────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Dataset & large files (do not push to GitHub) ─────────────────────────────
 data/
 _cifake_raw/
 *.zip
 *.tar.gz
 *.tgz
 
-# OS generated files
+# ── Model files (large binary — regenerate by running train.py) ────────────────
+cifake_model.keras
+cifake_model.h5
+ai-detector-app/backend/cnn_model.keras
+ai-detector-app/backend/cnn_model.h5
+
+# ── Database ───────────────────────────────────────────────────────────────────
+ai-detector-app/backend/database.db
+
+# ── Frontend (Node.js) ────────────────────────────────────────────────────────
+ai-detector-app/frontend/node_modules/
+ai-detector-app/frontend/build/
+
+# ── OS generated files ────────────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
 ._*
@@ -25,12 +42,3 @@ _cifake_raw/
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Environments
-.venv/
-venv/
-ENV/
-env/
-
-# Jupyter Notebook Checkpoints
-.ipynb_checkpoints/
