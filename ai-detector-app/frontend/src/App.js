@@ -1,19 +1,7 @@
-// App.js
-// Main UI component for the AI vs Real Image Detector web app.
-//
-// Sections:
-//   1. State & refs
-//   2. Data fetching (history from Flask)
-//   3. File selection & drag-and-drop handlers
-//   4. Image analysis (POST to /api/predict)
-//   5. Reset handler
-//   6. Render
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 
 function App() {
-  // ── 1. State & refs ─────────────────────────────────────────────────────────
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl,   setPreviewUrl]   = useState(null);
   const [loading,      setLoading]      = useState(false);
@@ -23,8 +11,6 @@ function App() {
 
   const fileInputRef = useRef(null);
 
-  // ── 2. Data fetching ────────────────────────────────────────────────────────
-  // Fetch the last 10 predictions from the Flask /api/history endpoint.
   const fetchHistory = useCallback(async () => {
     try {
       const res = await fetch("/api/history");
@@ -36,12 +22,10 @@ function App() {
     }
   }, []);
 
-  // Load history once when the component first mounts.
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
 
-  // ── 3. File selection & drag-and-drop ───────────────────────────────────────
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -58,7 +42,6 @@ function App() {
   };
 
   const handleDragOver = (e) => {
-    // Required to allow the drop event to fire
     e.preventDefault();
   };
 
@@ -79,8 +62,6 @@ function App() {
     setError(null);
   };
 
-  // ── 4. Image analysis ───────────────────────────────────────────────────────
-  // Send the selected image to the Flask backend and display the result.
   const handleAnalyze = async () => {
     if (!selectedFile) {
       setError("Please select an image first.");
@@ -102,7 +83,7 @@ function App() {
       }
 
       setPrediction(data);
-      fetchHistory();   // refresh history table after each prediction
+      fetchHistory();
     } catch (err) {
       setError(err.message || "An error occurred while connecting to the backend.");
     } finally {
@@ -110,7 +91,6 @@ function App() {
     }
   };
 
-  // ── 5. Reset ────────────────────────────────────────────────────────────────
   const handleReset = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
@@ -121,9 +101,6 @@ function App() {
     }
   };
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-  // Convert the raw sigmoid score (0–1) into a human-readable confidence %.
-  // confidence_score is P(AI-generated), so for a "Real" result we flip it.
   const getConfidencePercent = () => {
     if (!prediction) return 0;
     const score = prediction.is_ai
@@ -132,11 +109,9 @@ function App() {
     return (score * 100).toFixed(1);
   };
 
-  // ── 6. Render ───────────────────────────────────────────────────────────────
   return (
     <div className="app-container">
 
-      {/* ── Header ── */}
       <header className="app-header">
         <div className="header-badge">Deep Learning CNN</div>
         <h1>AI vs Real Image Detector</h1>
@@ -145,7 +120,6 @@ function App() {
 
       <main className="main-content">
 
-        {/* ── Upload Card ── */}
         <section className="upload-card">
           <div
             className={`drop-zone ${selectedFile ? "has-file" : ""}`}
@@ -153,7 +127,6 @@ function App() {
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
           >
-            {/* Hidden file input triggered by clicking the drop zone */}
             <input
               type="file"
               ref={fileInputRef}
@@ -177,10 +150,8 @@ function App() {
             )}
           </div>
 
-          {/* Error message */}
           {error && <div className="error-message">⚠️ {error}</div>}
 
-          {/* Action buttons */}
           <div className="button-group">
             <button
               id="analyze-btn"
@@ -210,18 +181,15 @@ function App() {
           </div>
         </section>
 
-        {/* ── Result Card (only shown after a prediction) ── */}
         {prediction && (
           <section className="result-card">
             <h2>Analysis Result</h2>
             <div className="result-body">
 
-              {/* Verdict badge */}
               <div className={`badge ${prediction.is_ai ? "badge-ai" : "badge-real"}`}>
                 {prediction.is_ai ? "🤖 AI-Generated" : "📸 Real Image"}
               </div>
 
-              {/* Confidence progress bar */}
               <div className="confidence-section">
                 <div className="confidence-header">
                   <span>Detection Confidence</span>
@@ -235,7 +203,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Extra details */}
               <div className="result-details">
                 <p><strong>File Name:</strong> {prediction.filename}</p>
                 <p>
@@ -247,7 +214,6 @@ function App() {
           </section>
         )}
 
-        {/* ── History Table ── */}
         <section className="history-card">
           <h2>Recent Classifications (SQLite Log)</h2>
           {history.length === 0 ? (
@@ -269,7 +235,6 @@ function App() {
                 <tbody>
                   {history.map((row) => {
                     const isAi = row.is_ai;
-                    // Convert sigmoid score to confidence % for the winning class
                     const conf = isAi
                       ? (row.confidence_score * 100).toFixed(1)
                       : ((1 - row.confidence_score) * 100).toFixed(1);
@@ -298,7 +263,6 @@ function App() {
 
       </main>
 
-      {/* ── Footer ── */}
       <footer className="app-footer">
         <p>Built with Flask · TensorFlow · SQLite · React.js</p>
       </footer>

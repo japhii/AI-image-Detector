@@ -1,56 +1,22 @@
-"""
-train.py
-========
-End-to-end training pipeline for the Real vs AI-Generated Image Classifier.
-
-Dataset  : CIFAKE — 120,000 images (60k real CIFAR-10 photos + 60k Stable Diffusion)
-Task     : Binary classification → REAL (0) vs AI-Generated (1)
-Hardware : CPU only (no GPU required)
-
-Pipeline
---------
-  1. Imports & reproducibility seeds
-  2. Data loading, quality scan, and train/val/test split
-  3. Normalisation & light data augmentation
-  4. CNN architecture  (93,377 trainable parameters)
-  5. Model compilation
-  6. Training with EarlyStopping (stops ~epoch 12, best weights from ~epoch 9)
-  7. Evaluation on the held-out 20,000 test images
-  8. Save plots: training history + confusion matrix
-  9. Print final summary
-
-How to run
-----------
-  python train.py
-"""
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 1. IMPORTS & REPRODUCIBILITY SEEDS
-# ═══════════════════════════════════════════════════════════════════════════
 import os
 import random
 
-# Seeds must be set BEFORE importing TensorFlow.
-# TensorFlow initialises internal ops at import time, so seeding after the
-# import may miss some sources of randomness.
 SEED = 42
-os.environ["PYTHONHASHSEED"] = str(SEED)   # Python hash randomisation
-random.seed(SEED)                          # Python stdlib random
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
 
 import numpy as np
-np.random.seed(SEED)                       # NumPy global seed
+np.random.seed(SEED)
 
-# Restrict TensorFlow to CPU only — ensures identical results on every machine
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import tensorflow as tf
-tf.random.set_seed(SEED)                   # TensorFlow / Keras op-level seed
+tf.random.set_seed(SEED)
 
-# Show only TF warnings and errors (suppress info messages)
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import matplotlib
-matplotlib.use("Agg")   # non-interactive backend — safe for scripts / servers
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -65,80 +31,63 @@ print(f"  NumPy version      : {np.__version__}")
 print(f"  Random seed        : {SEED}")
 print()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 2. DATA LOADING, QUALITY SCAN & SPLIT
-# ═══════════════════════════════════════════════════════════════════════════
-# ── Paths ────────────────────────────────────────────────────────────────────
-DATA_DIR       = Path("data")
-TRAIN_DIR      = DATA_DIR / "train"    # 100,000 images: 50k REAL + 50k FAKE
-TEST_DIR       = DATA_DIR / "test"     # 20,000  images: 10k REAL + 10k FAKE
+DATA_DIR  = Path("data")
+TRAIN_DIR = DATA_DIR / "train"
+TEST_DIR  = DATA_DIR / "test"
 
-# ── Hyper-parameters (data stage) ────────────────────────────────────────────
-IMAGE_SIZE  = (32, 32)          # every CIFAKE image is 32×32 px
-BATCH_SIZE  = 64                # fits comfortably on CPU RAM
-VAL_SPLIT   = 0.20             # 20 % of 100k = 20k validation; 80k actual train
+IMAGE_SIZE  = (32, 32)
+BATCH_SIZE  = 64
+VAL_SPLIT   = 0.20
 
-# ── Class order ───────────────────────────────────────────────────────────────
-# Keras reads folders alphabetically: FAKE → 0, REAL → 1  by default.
-# We explicitly override so that:
-#   REAL  → class 0   (negative label)
-#   FAKE  → class 1   (positive label  ←  "AI-generated")
-# This means the sigmoid output = P(image is AI-generated).
-CLASS_NAMES = ["REAL", "FAKE"]   # index 0 = real, index 1 = AI-generated
+CLASS_NAMES = ["REAL", "FAKE"]
 
 print("─" * 70)
 print("❷  Loading data ...")
 print()
 
-# ── Load training + validation split ─────────────────────────────────────────
-# `image_dataset_from_directory` handles the shuffle & split deterministically
-# when given a seed.  `class_names` controls label assignment order.
 ds_train_full = tf.keras.utils.image_dataset_from_directory(
     TRAIN_DIR,
-    labels        = "inferred",
-    label_mode    = "binary",           # scalar 0 / 1  (fits sigmoid + BCE)
-    class_names   = CLASS_NAMES,        # REAL=0, FAKE=1
-    color_mode    = "rgb",
-    image_size    = IMAGE_SIZE,
-    batch_size    = BATCH_SIZE,
-    shuffle       = True,
-    seed          = SEED,
+    labels           = "inferred",
+    label_mode       = "binary",
+    class_names      = CLASS_NAMES,
+    color_mode       = "rgb",
+    image_size       = IMAGE_SIZE,
+    batch_size       = BATCH_SIZE,
+    shuffle          = True,
+    seed             = SEED,
     validation_split = VAL_SPLIT,
-    subset        = "training",
+    subset           = "training",
 )
 
 ds_val = tf.keras.utils.image_dataset_from_directory(
     TRAIN_DIR,
-    labels        = "inferred",
-    label_mode    = "binary",
-    class_names   = CLASS_NAMES,
-    color_mode    = "rgb",
-    image_size    = IMAGE_SIZE,
-    batch_size    = BATCH_SIZE,
-    shuffle       = False,              # keep order stable for evaluation
-    seed          = SEED,
+    labels           = "inferred",
+    label_mode       = "binary",
+    class_names      = CLASS_NAMES,
+    color_mode       = "rgb",
+    image_size       = IMAGE_SIZE,
+    batch_size       = BATCH_SIZE,
+    shuffle          = False,
+    seed             = SEED,
     validation_split = VAL_SPLIT,
-    subset        = "validation",
+    subset           = "validation",
 )
 
 ds_test = tf.keras.utils.image_dataset_from_directory(
     TEST_DIR,
-    labels        = "inferred",
-    label_mode    = "binary",
-    class_names   = CLASS_NAMES,
-    color_mode    = "rgb",
-    image_size    = IMAGE_SIZE,
-    batch_size    = BATCH_SIZE,
-    shuffle       = False,
+    labels      = "inferred",
+    label_mode  = "binary",
+    class_names = CLASS_NAMES,
+    color_mode  = "rgb",
+    image_size  = IMAGE_SIZE,
+    batch_size  = BATCH_SIZE,
+    shuffle     = False,
 )
 
-# ── Report split sizes ────────────────────────────────────────────────────────
 n_train = ds_train_full.cardinality().numpy() * BATCH_SIZE
 n_val   = ds_val.cardinality().numpy()        * BATCH_SIZE
 n_test  = ds_test.cardinality().numpy()       * BATCH_SIZE
 
-# cardinality can be -2 (INFINITE) or -1 (UNKNOWN) for certain datasets;
-# use a count-based fallback if needed.
 def count_dataset(ds):
     return sum(1 for _ in ds.unbatch())
 
@@ -153,15 +102,13 @@ print(f"  Validation images : {n_val:,}")
 print(f"  Test images       : {n_test:,}")
 print()
 
-# ── Quality scan ─────────────────────────────────────────────────────────────
-# Inspect one batch to confirm shapes and value range BEFORE normalisation.
 print("  Running quality scan on one batch ...")
 for images, labels in ds_train_full.take(1):
     sample_images = images
     sample_labels = labels
 
-print(f"  Batch shape  : {sample_images.shape}")   # (64, 32, 32, 3)
-print(f"  Label shape  : {sample_labels.shape}")   # (64, 1)
+print(f"  Batch shape  : {sample_images.shape}")
+print(f"  Label shape  : {sample_labels.shape}")
 print(f"  Pixel range  : [{sample_images.numpy().min():.1f}, {sample_images.numpy().max():.1f}]")
 print(f"  Label values : {sorted(set(sample_labels.numpy().flatten().astype(int).tolist()))}")
 
@@ -174,7 +121,6 @@ print()
 print("  ✓ Quality scan passed: images are (32×32×3), labels are binary {0, 1}")
 print()
 
-# ── Class balance check (train source folder) ─────────────────────────────────
 def count_class_images(split_dir: Path, class_name: str) -> int:
     folder = split_dir / class_name
     return sum(1 for f in folder.iterdir()
@@ -199,50 +145,29 @@ assert test_real == test_fake, \
 print("  ✓ Class balance confirmed: perfectly balanced in both splits.")
 print()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 3. NORMALISATION & DATA AUGMENTATION
-# ═══════════════════════════════════════════════════════════════════════════
-# Why normalise: raw pixels [0, 255] cause large, unstable gradients during
-# training.  Mapping to [0, 1] keeps gradients in a stable range and makes
-# Adam's default learning rate effective.
-#
-# Why augmentation: 32×32 images have very few pixels.  Without augmentation
-# the model can memorise exact pixel positions and overfit badly.  We apply:
-#   • Random horizontal flip   — left-right reflections are equally valid
-#   • Random translation ±10%  — small shifts prevent position memorisation
-# We deliberately avoid heavy augmentation (rotations, colour jitter, etc.)
-# because CIFAR-scale images are already tiny; aggressive transforms destroy
-# class-discriminative features.
-
 print("─" * 70)
 print("❸  Building augmentation + normalisation pipeline ...")
 print()
 
-# Normalisation rescales [0,255] → [0,1].
-# Augmentation layers are applied ONLY during training (they are no-ops in
-# inference / evaluation mode automatically).
 normalise = tf.keras.layers.Rescaling(1.0 / 255)
 
 augment = tf.keras.Sequential([
     tf.keras.layers.RandomFlip("horizontal", seed=SEED),
     tf.keras.layers.RandomTranslation(
-        height_factor=0.10,   # ±10% vertical shift
-        width_factor =0.10,   # ±10% horizontal shift
+        height_factor=0.10,
+        width_factor =0.10,
         seed=SEED,
     ),
 ], name="augmentation")
 
-# Apply normalisation to every split, augmentation only to training data.
-# We use .map() so the operations are fused into the tf.data pipeline
-# and executed on-the-fly (no extra memory needed for augmented copies).
 AUTOTUNE = tf.data.AUTOTUNE
 
 def prepare_train(ds):
     return (
         ds
-        .map(lambda x, y: (normalise(x), y),   num_parallel_calls=AUTOTUNE)
+        .map(lambda x, y: (normalise(x), y),              num_parallel_calls=AUTOTUNE)
         .map(lambda x, y: (augment(x, training=True), y), num_parallel_calls=AUTOTUNE)
-        .cache()            # cache after augmentation to reuse across epochs
+        .cache()
         .prefetch(AUTOTUNE)
     )
 
@@ -262,53 +187,33 @@ print("  Augmentation: RandomFlip(horizontal) + RandomTranslation(±10%)")
 print("  Normalisation: pixel ÷ 255  →  [0, 1]")
 print()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 4. MODEL ARCHITECTURE
-# ═══════════════════════════════════════════════════════════════════════════
-# Architecture rationale:
-# ─ Three convolutional blocks progressively extract spatial features at
-#   increasing levels of abstraction (edges → textures → patterns).
-# ─ MaxPooling halves spatial dimensions after each block, keeping the
-#   receptive field growing without a parameter explosion.
-# ─ GlobalAveragePooling replaces Flatten to avoid over-parameterisation:
-#   it averages each feature map to a single number, giving 128 values.
-# ─ Dropout(0.5) before the head is the primary regulariser — it randomly
-#   zeros half the activations each batch so the network cannot co-adapt.
-# ─ A single sigmoid neuron outputs P(AI-generated), making this a clean
-#   binary classification head compatible with binary cross-entropy.
-
 print("─" * 70)
 print("❹  Building model ...")
 print()
 
 inputs = tf.keras.Input(shape=(32, 32, 3), name="image_input")
 
-# ── Block 1: 32 filters  (32×32 → 16×16) ────────────────────────────────────
 x = tf.keras.layers.Conv2D(
     32, (3, 3), activation="relu", padding="same", name="conv1"
 )(inputs)
-x = tf.keras.layers.MaxPooling2D((2, 2), name="pool1")(x)    # 16×16
+x = tf.keras.layers.MaxPooling2D((2, 2), name="pool1")(x)
 
-# ── Block 2: 64 filters  (16×16 → 8×8) ──────────────────────────────────────
 x = tf.keras.layers.Conv2D(
     64, (3, 3), activation="relu", padding="same", name="conv2"
 )(x)
-x = tf.keras.layers.MaxPooling2D((2, 2), name="pool2")(x)    # 8×8
+x = tf.keras.layers.MaxPooling2D((2, 2), name="pool2")(x)
 
-# ── Block 3: 128 filters (8×8 → 4×4) ────────────────────────────────────────
 x = tf.keras.layers.Conv2D(
     128, (3, 3), activation="relu", padding="same", name="conv3"
 )(x)
-x = tf.keras.layers.MaxPooling2D((2, 2), name="pool3")(x)    # 4×4
+x = tf.keras.layers.MaxPooling2D((2, 2), name="pool3")(x)
 
-# ── Pooling + Head ────────────────────────────────────────────────────────────
-x = tf.keras.layers.GlobalAveragePooling2D(name="gap")(x)    # (128,)
-x = tf.keras.layers.Dropout(0.5, seed=SEED, name="dropout")(x)
+x       = tf.keras.layers.GlobalAveragePooling2D(name="gap")(x)
+x       = tf.keras.layers.Dropout(0.5, seed=SEED, name="dropout")(x)
 outputs = tf.keras.layers.Dense(1, activation="sigmoid", name="output")(x)
 
 model = tf.keras.Model(inputs=inputs, outputs=outputs, name="cifake_cnn")
 
-# ── Verify parameter count ────────────────────────────────────────────────────
 total_params = model.count_params()
 print(model.summary())
 print()
@@ -320,23 +225,6 @@ assert total_params == 93_377, (
 )
 print("  ✓ Parameter count confirmed: 93,377")
 print()
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 5. COMPILATION
-# ═══════════════════════════════════════════════════════════════════════════
-# Loss choice: Binary cross-entropy is the canonical loss for binary sigmoid
-# outputs.  It measures the log-probability assigned to the correct label and
-# handles the 0/1 boundary cleanly.
-#
-# Optimizer: Adam (Adaptive Moment Estimation) with default learning rate 1e-3
-# adapts the step size per-parameter, which works well across different layer
-# depths without extensive tuning.
-#
-# Metrics tracked during training:
-#   accuracy  — overall fraction correct (easy to interpret)
-#   precision — of predicted AI, how many were truly AI
-#   recall    — of all AI images, how many were caught  ← key metric
-#   AUC       — area under the ROC curve (threshold-independent quality)
 
 print("─" * 70)
 print("❺  Compiling model ...")
@@ -358,24 +246,6 @@ print("  Optimizer : Adam (lr=1e-3 default)")
 print("  Metrics   : accuracy, precision, recall, AUC")
 print()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 6. TRAINING
-# ═══════════════════════════════════════════════════════════════════════════
-# EarlyStopping rationale:
-#   Monitoring validation loss — not accuracy — because loss is a smoother
-#   signal that reflects model calibration, not just threshold crossings.
-#   patience=3 allows 3 epochs of non-improvement before stopping.
-#   restore_best_weights=True rolls back to the epoch with the best val_loss
-#   automatically, so we do not need a separate model checkpoint step.
-#
-# Expected behaviour:
-#   Training stops at epoch 12 because the model's validation loss does not
-#   improve after epoch 9 for 3 consecutive epochs (patience=3).
-#   Weights are restored to epoch 9 (the best checkpoint).
-#
-# CPU note: One epoch over 80,000 images takes ~5–8 min on modern CPU.
-# Total wall-clock time ≈ 60–100 min.
-
 print("─" * 70)
 print("❻  Training (CPU only — this will take a while) ...")
 print()
@@ -384,37 +254,33 @@ MAX_EPOCHS = 20
 PATIENCE   = 3
 
 early_stop = tf.keras.callbacks.EarlyStopping(
-    monitor           = "val_loss",
-    patience          = PATIENCE,
+    monitor              = "val_loss",
+    patience             = PATIENCE,
     restore_best_weights = True,
-    verbose           = 1,
+    verbose              = 1,
 )
 
 history = model.fit(
     ds_train,
-    epochs            = MAX_EPOCHS,
-    validation_data   = ds_val_p,
-    callbacks         = [early_stop],
-    verbose           = 1,
+    epochs          = MAX_EPOCHS,
+    validation_data = ds_val_p,
+    callbacks       = [early_stop],
+    verbose         = 1,
 )
 
 stopped_epoch = early_stop.stopped_epoch
-best_epoch    = stopped_epoch - PATIENCE  # = stopped_epoch - 3
+best_epoch    = stopped_epoch - PATIENCE
 
 print()
 print(f"  Training stopped at epoch : {stopped_epoch}")
 print(f"  Best weights restored from: epoch {best_epoch}")
 print()
 
-# Save the model for inference / testing script
 model_save_path = Path("cifake_model.keras")
 model.save(model_save_path)
 print(f"  ✓ Saved trained model weights to: {model_save_path}")
 print()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 7. EVALUATION ON THE HELD-OUT TEST SET
-# ═══════════════════════════════════════════════════════════════════════════
 print("─" * 70)
 print("❼  Evaluating on test set (20,000 images the model has never seen) ...")
 print()
@@ -428,7 +294,6 @@ print(f"    Recall    : {results['recall']:.4f}  ({results['recall']*100:.2f}%)"
 print(f"    AUC       : {results['auc']:.4f}")
 print()
 
-# ── Confusion matrix (requires iterating the test dataset once) ───────────────
 print("  Building confusion matrix ...")
 
 y_true_list = []
@@ -444,16 +309,12 @@ y_pred = np.array(y_pred_list)
 
 cm = confusion_matrix(y_true, y_pred)
 
-# Layout:
-#          Predicted REAL  Predicted AI
-# True REAL      TN              FP
-# True AI        FN              TP
 TN, FP = cm[0, 0], cm[0, 1]
 FN, TP = cm[1, 0], cm[1, 1]
 
-ai_recall   = TP / (TP + FN) * 100   # % of AI images correctly caught
-ai_missed   = FN                      # AI images that slipped through
-real_flagged = FP                     # real images wrongly flagged as AI
+ai_recall    = TP / (TP + FN) * 100
+ai_missed    = FN
+real_flagged = FP
 
 print()
 print("  Confusion matrix:")
@@ -467,17 +328,13 @@ print(f"    AI images missed    : {FN:,}")
 print(f"    Real images flagged : {FP:,}")
 print()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 8. SAVE PLOTS
-# ═══════════════════════════════════════════════════════════════════════════
 print("─" * 70)
 print("❽  Saving plots ...")
 
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# ─── Plot 1: Training history ─────────────────────────────────────────────────
-hist = history.history
+hist       = history.history
 epochs_ran = range(1, len(hist["loss"]) + 1)
 
 fig, axes = plt.subplots(2, 3, figsize=(16, 9))
@@ -485,11 +342,11 @@ fig.suptitle("Training History — Real vs AI-Generated Image Classifier",
              fontsize=14, fontweight="bold")
 
 metric_pairs = [
-    ("loss",      "val_loss",      "Loss",      "Loss",           axes[0, 0]),
-    ("accuracy",  "val_accuracy",  "Accuracy",  "Accuracy",       axes[0, 1]),
-    ("precision", "val_precision", "Precision", "Precision",      axes[0, 2]),
-    ("recall",    "val_recall",    "Recall",    "Recall",         axes[1, 0]),
-    ("auc",       "val_auc",       "AUC",       "AUC",            axes[1, 1]),
+    ("loss",      "val_loss",      "Loss",      "Loss",      axes[0, 0]),
+    ("accuracy",  "val_accuracy",  "Accuracy",  "Accuracy",  axes[0, 1]),
+    ("precision", "val_precision", "Precision", "Precision", axes[0, 2]),
+    ("recall",    "val_recall",    "Recall",    "Recall",    axes[1, 0]),
+    ("auc",       "val_auc",       "AUC",       "AUC",       axes[1, 1]),
 ]
 
 for train_key, val_key, title, ylabel, ax in metric_pairs:
@@ -501,13 +358,11 @@ for train_key, val_key, title, ylabel, ax in metric_pairs:
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-# Mark best epoch
 best_ep = best_epoch if best_epoch > 0 else 1
 for _, _, _, _, ax in metric_pairs:
     ax.axvline(x=best_ep, color="green", linestyle="--", alpha=0.7,
                label=f"Best (ep {best_ep})")
 
-# Hide the unused 6th subplot
 axes[1, 2].axis("off")
 axes[1, 2].text(0.5, 0.5,
     f"Best epoch: {best_ep}\nStopped: {stopped_epoch}\nPatience: {PATIENCE}",
@@ -522,19 +377,18 @@ plt.savefig(history_path, dpi=150, bbox_inches="tight")
 plt.close()
 print(f"  Saved: {history_path}")
 
-# ─── Plot 2: Confusion matrix heatmap ────────────────────────────────────────
 fig, ax = plt.subplots(figsize=(7, 6))
 
 sns.heatmap(
     cm,
-    annot        = True,
-    fmt          = ",d",
-    cmap         = "Blues",
-    xticklabels  = ["Predicted REAL", "Predicted AI"],
-    yticklabels  = ["True REAL", "True AI"],
-    linewidths   = 0.5,
-    ax           = ax,
-    annot_kws    = {"size": 14, "weight": "bold"},
+    annot       = True,
+    fmt         = ",d",
+    cmap        = "Blues",
+    xticklabels = ["Predicted REAL", "Predicted AI"],
+    yticklabels = ["True REAL", "True AI"],
+    linewidths  = 0.5,
+    ax          = ax,
+    annot_kws   = {"size": 14, "weight": "bold"},
 )
 
 ax.set_title(
@@ -545,7 +399,6 @@ ax.set_title(
 ax.set_ylabel("Actual Class",    fontsize=11)
 ax.set_xlabel("Predicted Class", fontsize=11)
 
-# Annotate the cells with interpretation text
 cell_notes = {
     (0, 0): "True Negatives\n(Correctly REAL)",
     (0, 1): f"False Positives\n({FP:,} real images\nflagged as AI)",
@@ -565,9 +418,6 @@ plt.close()
 print(f"  Saved: {cm_path}")
 print()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 9. FINAL SUMMARY
-# ═══════════════════════════════════════════════════════════════════════════
 print("=" * 70)
 print("  FINAL RESULTS SUMMARY")
 print("=" * 70)

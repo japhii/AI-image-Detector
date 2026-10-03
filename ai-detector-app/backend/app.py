@@ -1,15 +1,3 @@
-"""
-app.py
-======
-Flask API server for the AI vs Real Image Detector web app.
-
-Endpoints
----------
-  GET  /               → Health check (confirms server + model are running)
-  POST /api/predict    → Accept an image, run the CNN, return the prediction
-  GET  /api/history    → Return the last 10 predictions from the SQLite log
-"""
-
 import os
 import sqlite3
 import numpy as np
@@ -21,26 +9,19 @@ from flask_cors import CORS
 from PIL import Image
 import tensorflow as tf
 
-
-# ── Silence TensorFlow startup logs ───────────────────────────────────────────
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["CUDA_VISIBLE_DEVICES"]  = ""
 
-
-# ── App setup ─────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000"])
 
 BASE_DIR = Path(__file__).parent
 DB_PATH  = BASE_DIR / "database.db"
 
-# Prefer the newer .keras format; fall back to the legacy .h5 format
 MODEL_PATH = BASE_DIR / "cnn_model.keras"
 if not MODEL_PATH.exists():
     MODEL_PATH = BASE_DIR / "cnn_model.h5"
 
-
-# ── Load the model at startup ─────────────────────────────────────────────────
 print(f"Loading model from '{MODEL_PATH}' ...")
 if not MODEL_PATH.exists():
     raise FileNotFoundError(
@@ -53,14 +34,7 @@ model = tf.keras.models.load_model(str(MODEL_PATH))
 print("✓ Model loaded successfully.")
 
 
-# ── Database helpers ──────────────────────────────────────────────────────────
-
 def get_db() -> sqlite3.Connection:
-    """
-    Return a SQLite connection for the current request.
-    Flask stores it on the 'g' proxy so it is shared within a single request
-    and automatically closed when the request ends.
-    """
     if "db" not in g:
         g.db = sqlite3.connect(str(DB_PATH), detect_types=sqlite3.PARSE_DECLTYPES)
         g.db.row_factory = sqlite3.Row
@@ -69,14 +43,12 @@ def get_db() -> sqlite3.Connection:
 
 @app.teardown_appcontext
 def close_db(error) -> None:
-    """Close the database connection at the end of every request."""
     db = g.pop("db", None)
     if db is not None:
         db.close()
 
 
 def init_db() -> None:
-    """Create the predictions table if it does not already exist."""
     with app.app_context():
         db = get_db()
         db.execute("""
@@ -91,30 +63,15 @@ def init_db() -> None:
         db.commit()
 
 
-# ── Image preprocessing ───────────────────────────────────────────────────────
-
 def preprocess_image(file_stream) -> np.ndarray:
-    """
-    Prepare an image for model inference:
-      1. Open from the uploaded file stream and convert to RGB.
-      2. Resize to 32×32 pixels (the resolution the model was trained on).
-      3. Scale pixel values from [0, 255] to [0.0, 1.0].
-      4. Add a batch dimension: (32, 32, 3) → (1, 32, 32, 3).
-    """
     img = Image.open(file_stream).convert("RGB")
     img = img.resize((32, 32), Image.LANCZOS)
     arr = np.array(img, dtype=np.float32) / 255.0
-    return np.expand_dims(arr, axis=0)   # shape: (1, 32, 32, 3)
+    return np.expand_dims(arr, axis=0)
 
-
-# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/predict", methods=["POST"])
 def predict():
-    """
-    Accept a multipart/form-data POST with an 'image' field.
-    Returns a JSON object with the prediction result.
-    """
     if "image" not in request.files:
         return jsonify({"status": "error", "message": "No image file uploaded."}), 400
 
@@ -124,17 +81,13 @@ def predict():
 
     filename = file.filename
 
-    # Preprocess and run the model
     tensor     = preprocess_image(file.stream)
     raw_output = float(model.predict(tensor, verbose=0)[0][0])
 
-    # raw_output is the sigmoid probability of being AI-generated
-    # Values >= 0.5 are classified as AI-generated
     is_ai      = raw_output >= 0.5
     confidence = raw_output if is_ai else (1.0 - raw_output)
     label      = "AI-Generated" if is_ai else "Real Image"
 
-    # Save result to the SQLite history log
     db = get_db()
     db.execute(
         "INSERT INTO predictions (filename, is_ai, confidence_score) VALUES (?, ?, ?)",
@@ -153,7 +106,6 @@ def predict():
 
 @app.route("/api/history", methods=["GET"])
 def history():
-    """Return the last 10 prediction records from the SQLite database."""
     db   = get_db()
     rows = db.execute(
         "SELECT id, filename, is_ai, confidence_score, timestamp "
@@ -174,11 +126,9 @@ def history():
 
 @app.route("/", methods=["GET"])
 def health():
-    """Simple health check — confirms the server and model are running."""
     return jsonify({"status": "ok", "model_loaded": model is not None})
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000, debug=True)

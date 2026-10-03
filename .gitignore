@@ -1,40 +1,32 @@
-# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .Python
 
-# ── Virtual environments ───────────────────────────────────────────────────────
 .venv/
 venv/
 env/
 ENV/
 
-# ── Jupyter ────────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/
 
-# ── Dataset & large files (do not push to GitHub) ─────────────────────────────
 data/
 _cifake_raw/
 *.zip
 *.tar.gz
 *.tgz
 
-# ── Model files (large binary — regenerate by running train.py) ────────────────
 cifake_model.keras
 cifake_model.h5
 ai-detector-app/backend/cnn_model.keras
 ai-detector-app/backend/cnn_model.h5
 
-# ── Database ───────────────────────────────────────────────────────────────────
 ai-detector-app/backend/database.db
 
-# ── Frontend (Node.js) ────────────────────────────────────────────────────────
 ai-detector-app/frontend/node_modules/
 ai-detector-app/frontend/build/
 
-# ── OS generated files ────────────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
 ._*

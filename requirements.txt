@@ -1,19 +1,8 @@
-# ── Core ML / Deep Learning ────────────────────────────────────────────────────
 tensorflow>=2.12.0
-
-# ── Numerical computing ────────────────────────────────────────────────────────
 numpy>=1.23.0
-
-# ── Machine learning utilities (confusion matrix, metrics) ────────────────────
 scikit-learn>=1.2.0
-
-# ── Image processing ───────────────────────────────────────────────────────────
 pillow>=10.0.0
-
-# ── Visualisation ─────────────────────────────────────────────────────────────
 matplotlib>=3.7.0
 seaborn>=0.12.0
-
-# ── Jupyter Notebook (optional — only needed to open notebook.ipynb) ──────────
 jupyter>=1.0.0
 ipykernel>=6.0.0
